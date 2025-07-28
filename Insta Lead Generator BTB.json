@@ -1,0 +1,188 @@
+{
+  "name": "Insta Lead Generator BTB",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "streamlit-form",
+        "options": {
+          "responseData": "Search request sent successfully!"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        112
+      ],
+      "id": "1ae44c2a-d0b4-41ed-9231-f2f67e6a6137",
+      "name": "Webhook",
+      "webhookId": "14f9a3ef-bc49-446a-af13-09d983c7c77f"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -304,
+        -80
+      ],
+      "id": "a6ec441b-569b-4e34-b419-2a07b396499f",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"Who are you looking for ?\": \" model, fashion model \",\n  \"Relevant hashtags? (comma separated)\": \"#model, #stylist\",\n  \"Location ?\": \"Mumbai\"\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -80,
+        -80
+      ],
+      "id": "1187c676-9764-4313-95fa-b1372f0ca085",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "content": "Schedule search on Every Mon 9 am",
+        "height": 192,
+        "width": 480,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -384,
+        -112
+      ],
+      "typeVersion": 1,
+      "id": "38014ccf-b3e9-4727-a005-06b9931909ae",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "Webhook activates when HR searches via WebApp",
+        "width": 480,
+        "color": 2
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -384,
+        80
+      ],
+      "typeVersion": 1,
+      "id": "cc599a63-51a2-446b-b1b9-24fceed301f3",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "cKGAEdXpujpDd9qM",
+          "mode": "list",
+          "cachedResultName": "insta leads gen - i/p to o/p flow "
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "body": "={{ $json.body }}",
+            "": "={{ $json. }}"
+          },
+          "matchingColumns": [
+            "body",
+            ""
+          ],
+          "schema": [
+            {
+              "id": "body",
+              "displayName": "body",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "",
+              "displayName": "",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        608,
+        -16
+      ],
+      "name": "Call insta leads gen - i/p to o/p flow ",
+      "id": "e714f536-3bf2-414a-94ec-ab7c48a219ce"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Call insta leads gen - i/p to o/p flow ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Call insta leads gen - i/p to o/p flow ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "cc17a1dd-0419-4398-b572-851d3e255928",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "83dcdcc5a3a0909b29078e951de6099461556e1e6e81b47f519566fbe0b4d7eb"
+  },
+  "id": "is4v6LWwfsLIb75G",
+  "tags": []
+}

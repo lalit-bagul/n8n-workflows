@@ -1,0 +1,437 @@
+{
+  "name": "insta leads gen BTB - i/p to o/p flow",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/apify~google-search-scraper/run-sync-get-dataset-items?token=apify_api_8O9arcYZUBvBIV81VxybWXSxhOeDOL0mAfsF",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"focusOnPaidAds\": false,\n  \"forceExactMatch\": false,\n  \"includeIcons\": false,\n  \"includeUnfilteredResults\": false,\n  \"maxPagesPerQuery\": 1,\n  \"mobileResults\": false,\n  \"queries\": \"site:x.com + {{ $json.formattedTags }} + {{ $json.formattedHashtags }} + {{ $json.location }}\",\n  \"resultsPerPage\": 100,\n  \"saveHtml\": false,\n  \"saveHtmlToKeyValueStore\": true\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        368,
+        208
+      ],
+      "id": "e17cf5a9-5d35-466c-9abc-a9db7a0d0bf6",
+      "name": "Twitter/X"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get tags the user wants (from the form node)\nconst tagsInput = $item(0).$node[\"Multiple Entries Handling\"].json[\"Who are you looking for ?\"] || \"\";\nconst tags = tagsInput.split(\",\").map(tag => tag.trim().toLowerCase());\n\n// Scraped profiles from HTTP Request node (Apify output)\nconst creators = $json[\"organicResults\"] || [];\n\n// Helper to parse follower count like \"2.3M\"\nconst parseFollowers = (raw) => {\n  if (!raw || typeof raw !== 'string') return null;\n  const clean = raw.trim().toUpperCase();\n  const match = clean.match(/([\\d.,]+)\\s*([KMB]?)/);\n  if (!match) return null;\n  let number = parseFloat(match[1].replace(',', ''));\n  if (isNaN(number)) return null;\n  switch (match[2]) {\n    case 'K': return Math.round(number * 1000);\n    case 'M': return Math.round(number * 1000000);\n    case 'B': return Math.round(number * 1000000000);\n    default: return Math.round(number);\n  }\n};\n\n// Filter and map\nreturn creators\n  .filter(creator => {\n    const bio = (creator.description || \"\").toLowerCase();\n    return tags.some(tag => bio.includes(tag));\n  })\n  .map(creator => {\n    const titleSplit = creator.title?.split(\"(@\") || [];\n    const name = titleSplit[0]?.trim() || \"Unknown\";\n    const handle = titleSplit[1]?.split(\")\")[0] || \"\";\n    const rawFollowers = creator.followersAmount || \"\";\n    const cleanFollowers = parseFollowers(rawFollowers);\n\n    return {\n      json: {\n        Name: name,\n        Handle: handle,\n        ProfileURL: creator.url || \"\",\n        Description: creator.description || \"\",\n        Followers: cleanFollowers,\n        Username: creator.channelName || \"\",\n        Platform: \"Twitter\"   // 👈 hardcoded for this branch\n      }\n    };\n  })\n  .filter(item => item.json.Followers >= 10000); // keep only >1M followers"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        592,
+        208
+      ],
+      "id": "a43cca74-ccec-45ba-bd04-c74798052e43",
+      "name": "filter3"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-3.5-turbo",
+          "mode": "list",
+          "cachedResultName": "GPT-3.5-TURBO"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Write a friendly, personalized message inviting {{ $json.Name }}, a {{ $json.Description }} to collaborate with our media agency named Bob the Builder Media Management Firm.\n"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        1040,
+        112
+      ],
+      "id": "1f6c2da5-d8b8-41ef-8593-e8d127e53bf7",
+      "name": "Message a model",
+      "credentials": {
+        "openAiApi": {
+          "id": "s2pxtAgJ3gZwW2Ci",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "table": {
+          "__rl": true,
+          "value": "profiles",
+          "mode": "list",
+          "cachedResultName": "profiles"
+        },
+        "dataMode": "defineBelow",
+        "valuesToSend": {
+          "values": [
+            {
+              "column": "customMessage"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        1440,
+        112
+      ],
+      "id": "0772ed50-fd22-4803-b306-73eabea1595a",
+      "name": "Insert rows in a table1",
+      "credentials": {
+        "mySql": {
+          "id": "GUu212XSUiNDY7HF",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $json.body ?? $json;  // use body if exists, else fallback\n\nconst raw = data[\"Who are you looking for ?\"] || \"\";\nconst tags = raw.split(\",\").map(t => t.trim()).filter(Boolean);\nconst formattedTags = tags.length > 0 ? `(${tags.join(\" OR \")})` : \"\";\n\nconst hashtagsRaw = data[\"Relevant hashtags? (comma separated)\"] || \"\";\nconst hashtags = hashtagsRaw\n  .split(\",\")\n  .map(tag => tag.trim())\n  .filter(Boolean)\n  .map(tag => tag.startsWith(\"#\") ? tag : `#${tag}`);\nconst formattedHashtags = hashtags.length > 0 ? `(${hashtags.join(\" OR \")})` : \"\";\n\nconst location = data[\"Location ?\"] || \"\";\n\nreturn [{\n  json: {\n    formattedTags,\n    formattedHashtags,\n    location\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        16
+      ],
+      "id": "7207f0ea-d07f-4eba-a489-13df18c85838",
+      "name": "Multiple Entries Handling"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/apify~google-search-scraper/run-sync-get-dataset-items?token=apify_api_8O9arcYZUBvBIV81VxybWXSxhOeDOL0mAfsF",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"focusOnPaidAds\": false,\n  \"forceExactMatch\": false,\n  \"includeIcons\": false,\n  \"includeUnfilteredResults\": false,\n  \"maxPagesPerQuery\": 1,\n  \"mobileResults\": false,\n  \"queries\": \"site:instagram.com + {{ $json.formattedTags }} + {{ $json.formattedHashtags }} + {{ $json.location }}\",\n  \"resultsPerPage\": 100,\n  \"saveHtml\": false,\n  \"saveHtmlToKeyValueStore\": true\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        368,
+        16
+      ],
+      "id": "2b2eac00-8242-4757-bc6a-dbf8649d017e",
+      "name": "Insta"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get tags the user wants (from the form node)\nconst tagsInput = $item(0).$node[\"Multiple Entries Handling\"].json[\"Who are you looking for ?\"] || \"\";\nconst tags = tagsInput.split(\",\").map(tag => tag.trim().toLowerCase());\n\n// Scraped profiles from HTTP Request node (Apify output)\nconst creators = $json[\"organicResults\"] || [];\n\n// Helper to parse follower count like \"2.3M\"\nconst parseFollowers = (raw) => {\n  if (!raw || typeof raw !== 'string') return null;\n  const clean = raw.trim().toUpperCase();\n  const match = clean.match(/([\\d.,]+)\\s*([KMB]?)/);\n  if (!match) return null;\n  let number = parseFloat(match[1].replace(',', ''));\n  if (isNaN(number)) return null;\n  switch (match[2]) {\n    case 'K': return Math.round(number * 1000);\n    case 'M': return Math.round(number * 1000000);\n    case 'B': return Math.round(number * 1000000000);\n    default: return Math.round(number);\n  }\n};\n\n// Filter and map\nreturn creators\n  .filter(creator => {\n    const bio = (creator.description || \"\").toLowerCase();\n    return tags.some(tag => bio.includes(tag));\n  })\n  .map(creator => {\n    const titleSplit = creator.title?.split(\"(@\") || [];\n    const name = titleSplit[0]?.trim() || \"Unknown\";\n    const handle = titleSplit[1]?.split(\")\")[0] || \"\";\n    const rawFollowers = creator.followersAmount || \"\";\n    const cleanFollowers = parseFollowers(rawFollowers);\n\n    return {\n      json: {\n        Name: name,\n        Handle: handle,\n        ProfileURL: creator.url || \"\",\n        Description: creator.description || \"\",\n        Followers: cleanFollowers,\n        Username: creator.channelName || \"\",\n        Platform: \"Instagram\"   // 👈 hardcoded for this branch\n      }\n    };\n  })\n  .filter(item => item.json.Followers >= 10000); // keep only >1M followers"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        592,
+        16
+      ],
+      "id": "dedfd8e5-d3a3-4295-8750-ccab50114e10",
+      "name": "filter2"
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        816,
+        0
+      ],
+      "id": "02bf1fca-e2ad-4db9-928e-4fa01ad7eb5b",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "table": {
+          "__rl": true,
+          "value": "profiles",
+          "mode": "list",
+          "cachedResultName": "profiles"
+        },
+        "dataMode": "defineBelow",
+        "valuesToSend": {
+          "values": [
+            {
+              "column": "Name",
+              "value": "={{ $json.Name }}"
+            },
+            {
+              "column": "Handle",
+              "value": "={{ $json.ProfileURL }}"
+            },
+            {
+              "column": "Description",
+              "value": "={{ $json.Description }}"
+            },
+            {
+              "column": "Followers",
+              "value": "={{ $json.Followers }}"
+            },
+            {
+              "column": "Platform",
+              "value": "={{ $json.Platform }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        1136,
+        -80
+      ],
+      "id": "bcd87f9c-11db-4a96-85f1-63eab1d28431",
+      "name": "Insert rows in a table",
+      "credentials": {
+        "mySql": {
+          "id": "GUu212XSUiNDY7HF",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "Add OR in tags to pass for query\n",
+        "height": 352,
+        "width": 192,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        96,
+        -112
+      ],
+      "typeVersion": 1,
+      "id": "226531fc-a5c2-4369-9991-ff243e24aedf",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/apify~google-search-scraper/run-sync-get-dataset-items?token=apify_api_8O9arcYZUBvBIV81VxybWXSxhOeDOL0mAfsF",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"focusOnPaidAds\": false,\n  \"forceExactMatch\": false,\n  \"includeIcons\": false,\n  \"includeUnfilteredResults\": false,\n  \"maxPagesPerQuery\": 1,\n  \"mobileResults\": false,\n  \"queries\": \"site:facebook.com + {{ $json.formattedTags }} + {{ $json.formattedHashtags }} + {{ $json.location }}\",\n  \"resultsPerPage\": 100,\n  \"saveHtml\": false,\n  \"saveHtmlToKeyValueStore\": true\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        368,
+        -176
+      ],
+      "id": "37bc74a5-fab1-4b73-9d5b-27a4d3ba31b3",
+      "name": "FB"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get tags the user wants (from the form node)\nconst tagsInput = $item(0).$node[\"Multiple Entries Handling\"].json[\"Who are you looking for ?\"] || \"\";\nconst tags = tagsInput.split(\",\").map(tag => tag.trim().toLowerCase());\n\n// Scraped profiles from HTTP Request node (Apify output)\nconst creators = $json[\"organicResults\"] || [];\n\n// Helper to parse follower count like \"2.3M\"\nconst parseFollowers = (raw) => {\n  if (!raw || typeof raw !== 'string') return null;\n  const clean = raw.trim().toUpperCase();\n  const match = clean.match(/([\\d.,]+)\\s*([KMB]?)/);\n  if (!match) return null;\n  let number = parseFloat(match[1].replace(',', ''));\n  if (isNaN(number)) return null;\n  switch (match[2]) {\n    case 'K': return Math.round(number * 1000);\n    case 'M': return Math.round(number * 1000000);\n    case 'B': return Math.round(number * 1000000000);\n    default: return Math.round(number);\n  }\n};\n\n// Filter and map\nreturn creators\n  .filter(creator => {\n    const bio = (creator.description || \"\").toLowerCase();\n    return tags.some(tag => bio.includes(tag));\n  })\n  .map(creator => {\n    const titleSplit = creator.title?.split(\"(@\") || [];\n    const name = titleSplit[0]?.trim() || \"Unknown\";\n    const handle = titleSplit[1]?.split(\")\")[0] || \"\";\n    const rawFollowers = creator.followersAmount || \"\";\n    const cleanFollowers = parseFollowers(rawFollowers);\n\n    return {\n      json: {\n        Name: name,\n        Handle: handle,\n        ProfileURL: creator.url || \"\",\n        Description: creator.description || \"\",\n        Followers: cleanFollowers,\n        Username: creator.channelName || \"\",\n        Platform: \"Facebook\"   // 👈 hardcoded for this branch\n      }\n    };\n  })\n  .filter(item => item.json.Followers >= 10000); // keep only >1M followers"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        592,
+        -176
+      ],
+      "id": "2c7183f6-8301-41a2-94a9-1c02c4148fb7",
+      "name": "filter"
+    },
+    {
+      "parameters": {
+        "content": "Apify Google \nScraper\n",
+        "height": 752,
+        "width": 208,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        288,
+        -304
+      ],
+      "typeVersion": 1,
+      "id": "eddb182c-b096-4a37-987a-018487d6a9be",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "body",
+              "type": "any"
+            },
+            {
+              "type": "any"
+            }
+          ]
+        }
+      },
+      "id": "29c4a353-0280-4ff2-acd4-39cd87859260",
+      "typeVersion": 1.1,
+      "name": "Start",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        -64,
+        16
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Multiple Entries Handling": {
+      "main": [
+        [
+          {
+            "node": "Insta",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "FB",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Twitter/X",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FB": {
+      "main": [
+        [
+          {
+            "node": "filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Insert rows in a table",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twitter/X": {
+      "main": [
+        [
+          {
+            "node": "filter3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insta": {
+      "main": [
+        [
+          {
+            "node": "filter2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "filter": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "filter2": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "filter3": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Insert rows in a table1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert rows in a table1": {
+      "main": [
+        []
+      ]
+    },
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Multiple Entries Handling",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "6868ff1b-24e8-4c16-9b26-0405ff78fd76",
+  "meta": {
+    "instanceId": "83dcdcc5a3a0909b29078e951de6099461556e1e6e81b47f519566fbe0b4d7eb"
+  },
+  "id": "cKGAEdXpujpDd9qM",
+  "tags": []
+}
